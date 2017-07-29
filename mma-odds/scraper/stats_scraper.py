@@ -1,17 +1,68 @@
 from bs4 import BeautifulSoup
+import os
 import pickle
 import requests
 import ufc_objects as ufc
 
 
-def main():
-	# TODO: Get the URLs for *all* of the fights
-	test_url = requests.get("http://www.fightmetric.com/fight-details/5be97c1fa222093d")
-	soup = BeautifulSoup(test_url.text, "lxml")
+# Constants
+ALL_EVENTS_PAGE = "http://www.fightmetric.com/statistics/events/completed?page=all"
+STOP_EVENT = "UFC 20: Battle for the Gold"
+EVENT_FOLDER = ".//saved_events//"
 
-	# name of event
-	print(soup.h2.get_text("|", strip=True))
-	test_fight = scrape_fight(soup)
+
+def main():
+	# get our delicious soup
+	soup = BeautifulSoup(requests.get(ALL_EVENTS_PAGE).text, "lxml")
+
+	# scrape all UFC events up to STOP_EVENT
+	ufc_events = []
+	for row in soup.find_all("a", "b-link b-link_style_black"):
+
+		event_name = row.get_text("|", strip=True)
+		strip_event_name = "".join(ch for ch in event_name if ch.isalnum())
+		if event_name == STOP_EVENT:
+			break
+
+		# check if data already exists
+		elif not os.path.exists(EVENT_FOLDER + strip_event_name + ".pickle"):
+
+			event_soup = BeautifulSoup(requests.get(row["href"]).text, "lxml")
+			new_event = scrape_event(event_soup)
+			with open(EVENT_FOLDER + strip_event_name + ".pickle", "wb") as f:
+				pickle.dump(new_event, f, pickle.HIGHEST_PROTOCOL)
+			ufc_events.append(new_event)
+
+def scrape_event(event_soup):
+	# Scrapes an entire UFC event, given a soup of the event page
+	new_event = ufc.Event()
+	new_event.name = event_soup.find(
+		"h2", "b-content__title").get_text("|", strip=True)
+	print("\n\nScraping {}...".format(new_event.name))
+
+	# event details
+	event_details = []
+	for detail in event_soup.find_all("li", "b-list__box-list-item"):
+		event_details.append(str(detail.get_text("|", strip=True)).split("|"))
+
+	if len(event_details[2]) == 2:
+		new_event.attendance = event_details[2][1]
+
+	new_event.date = event_details[0][1]
+	new_event.location = event_details[1][1]
+	
+	# obtain links to fight pages
+	fight_links = []
+	for fight in event_soup.find_all("tr", "b-fight-details__table-row b-fight-details__table-row__hover js-fight-details-click"):
+		fight_links.append(fight["data-link"])
+
+	# scrape fights
+	for i, fight_link in enumerate(fight_links):
+		print("Scraping fight #{}...".format(i+1))
+		fight_soup = BeautifulSoup(requests.get(fight_link).text, "lxml")
+		new_event.fights.append(scrape_fight(fight_soup))
+
+	return new_event
 
 def scrape_fight(fight_soup):
 	# Scrapes fight data into a Fight object and returns it
