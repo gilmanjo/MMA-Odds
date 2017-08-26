@@ -237,7 +237,7 @@ def scrape_fighter(fighter_soup):
 		new_fighter.weight = stats_list[1][1][:stats_list[1][1].find("lbs")]
 
 	if stats_list[2][1].find("\"") != -1:
-		new_fighter.reach = stats_list[2][1]
+		new_fighter.reach = int(stats_list[2][1][:2])
 
 	# stance
 	if len(stats_list[3]) == 2:

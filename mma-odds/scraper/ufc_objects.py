@@ -73,7 +73,7 @@ class Fighter(object):
 		self.slpm = 0	# Sig Strikes Landed Per Min
 		self.str_acc = 0	# Sig Strike Accuracy
 		self.sapm = 0	# Sig Strikes Absorbed Per Min
-		self.str_def = 0	# Sig Strike Defence
+		self.str_def = 0	# Sig Strike Defense
 		self.td_avg = 0		# Avg Takedowns per 15 Min
 		self.td_acc = 0		# Takedown Accuracy
 		self.td_def = 0		# Takedown Defense
