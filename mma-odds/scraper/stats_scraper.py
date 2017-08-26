@@ -1,14 +1,21 @@
 from bs4 import BeautifulSoup
+import calendar
+from datetime import date
 import os
 import pickle
+import re
 import requests
+from string import ascii_lowercase
 import ufc_objects as ufc
 
 
 # Constants
 ALL_EVENTS_PAGE = "http://www.fightmetric.com/statistics/events/completed?page=all"
-STOP_EVENT = "UFC 20: Battle for the Gold"
+ALL_FIGHTERS_PAGE = "http://www.fightmetric.com/statistics/fighters?char=a&page=all"
+START_EVENT = "UFC Fight Night: Volkov vs. Struve"
+STOP_EVENT = "UFC 26: Ultimate Field Of Dreams"
 EVENT_FOLDER = ".//saved_events//"
+FIGHTER_FOLDER = ".//saved_fighters//"
 
 
 def main():
@@ -24,6 +31,9 @@ def main():
 		if event_name == STOP_EVENT:
 			break
 
+		elif event_name == START_EVENT:
+			continue
+
 		# check if data already exists
 		elif not os.path.exists(EVENT_FOLDER + strip_event_name + ".pickle"):
 
@@ -32,6 +42,36 @@ def main():
 			with open(EVENT_FOLDER + strip_event_name + ".pickle", "wb") as f:
 				pickle.dump(new_event, f, pickle.HIGHEST_PROTOCOL)
 			ufc_events.append(new_event)
+
+	# now let's get our fighter data
+
+	# scrape all UFC fighters in company history
+	ufc_fighters = []
+	for letter in ascii_lowercase[4:]:
+
+		# update list page URL to next letter in alphabet
+		fighters_url = ALL_FIGHTERS_PAGE.replace(
+			"char=a", "char={}".format(letter))
+		soup = BeautifulSoup(requests.get(fighters_url).text, "lxml")
+		
+		for row in soup.find_all("tr", "b-statistics__table-row")[1:]:
+
+			# get the fighter's URL
+			link = row.find("td").find("a")
+			if link is not None:
+				link = link["href"]
+
+				# scrape fighter
+				fighter_soup = BeautifulSoup(requests.get(link).text, "lxml")
+				new_fighter = scrape_fighter(fighter_soup)
+				ufc_fighters.append(new_fighter)
+
+				# save to file
+				if new_fighter is not None:
+
+					with open(FIGHTER_FOLDER + new_fighter.name + 
+							".pickle", "wb") as f:
+						pickle.dump(new_fighter, f, pickle.HIGHEST_PROTOCOL)
 
 def scrape_event(event_soup):
 	# Scrapes an entire UFC event, given a soup of the event page
@@ -89,9 +129,11 @@ def scrape_fight(fight_soup):
 			new_fight.end_round = int(line[3])
 			new_fight.end_time = line[5]
 			new_fight.num_rounds = line[7][0]
-			new_fight.referee = line[9]
 
-		elif line[0] == "Details:":
+			if len(line) == 10:
+				new_fight.referee = line[9]
+
+		elif line[0] == "Details:" and len(line) > 1:
 			new_fight.details = ", ".join(line[1:])
 
 	# round data
@@ -146,6 +188,82 @@ def scrape_rounds(round_type, round_soup):
 			rounds.append(new_round)
 
 	return rounds
+
+def scrape_fighter(fighter_soup):
+	# Scrapes fighter's stats, provided the profile is complete
+	fighter_name = fighter_soup.find("span", "b-content__title-highlight"
+									).get_text("|", strip=True)
+
+	if os.path.exists(FIGHTER_FOLDER + fighter_name + ".pickle"):
+		return None
+
+	stats_list = fighter_soup.find_all("li", 
+		"b-list__box-list-item b-list__box-list-item_type_block")
+
+	# clean up ripped data
+	for x in range(len(stats_list)):
+		stats_list[x] = stats_list[x].get_text("|", strip=True).split("|")
+
+	# We don't want the fighter if the reach is unknown
+	if stats_list[2][1] == "--":
+		print("Skipping {}...".format(fighter_name))
+		return None
+
+	# Otherwise, let's scrape all the data
+	print("Ripping data for {}...".format(fighter_name))
+	new_fighter = ufc.Fighter()
+
+	new_fighter.name = fighter_name
+
+	# record
+	record_string = fighter_soup.find("span", "b-content__title-record"
+									).get_text("|", strip=True).split()
+	record = record_string[1].split("-")
+	new_fighter.wins = record[0]
+	new_fighter.losses = record[1]
+	new_fighter.draws = record[2]
+
+	# if the fighter has no contests
+	if len(record_string) > 2:
+		new_fighter.ncs = re.findall("\d+", record_string[2])
+
+	# height
+	if stats_list[0][1].find("'") != -1:
+		height =  [re.findall("\d+", s) for s in stats_list[0][1].split()]
+		new_fighter.height = int(height[0][0])*12 + int(height[1][0])
+
+	# weight
+	if stats_list[1][1].find("lbs") != -1:
+		new_fighter.weight = stats_list[1][1][:stats_list[1][1].find("lbs")]
+
+	if stats_list[2][1].find("\"") != -1:
+		new_fighter.reach = stats_list[2][1]
+
+	# stance
+	if len(stats_list[3]) == 2:
+		new_fighter.stance = stats_list[3][1]
+
+	else:
+		new_fighter.stance = "Unknown"
+
+	# dob/age
+	if stats_list[4][1] != "--":
+		new_fighter.dob = date(int(stats_list[4][1][8:12]), 
+							list(calendar.month_abbr).index(
+								stats_list[4][1][0:3]),
+							int(stats_list[4][1][4:6]))
+
+	# career stats
+	new_fighter.slpm = stats_list[5][1]
+	new_fighter.str_acc = re.findall("\d+", stats_list[6][1])
+	new_fighter.sapm = stats_list[7][1]
+	new_fighter.str_def = re.findall("\d+", stats_list[8][1])
+	new_fighter.td_avg = stats_list[10][1]
+	new_fighter.td_acc = re.findall("\d+", stats_list[11][1])
+	new_fighter.td_def = re.findall("\d+", stats_list[12][1])
+	new_fighter.sub_avg = stats_list[13][1]
+
+	return new_fighter
 
 if __name__ == '__main__':
 	main()

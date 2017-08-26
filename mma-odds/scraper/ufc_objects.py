@@ -55,8 +55,26 @@ class Fighter(object):
 		super(Fighter, self).__init__()
 		self.name = ""
 		self.nickname = ""
+
+		# Record
+		self.wins = 0
+		self.losses = 0
+		self.draws = 0
+		self.ncs = 0
+
+		# Physical Stats
 		self.height = 0
 		self.weight = 0
 		self.reach = 0
 		self.stance = ""
 		self.dob = ""
+
+		# Performance Stats
+		self.slpm = 0	# Sig Strikes Landed Per Min
+		self.str_acc = 0	# Sig Strike Accuracy
+		self.sapm = 0	# Sig Strikes Absorbed Per Min
+		self.str_def = 0	# Sig Strike Defence
+		self.td_avg = 0		# Avg Takedowns per 15 Min
+		self.td_acc = 0		# Takedown Accuracy
+		self.td_def = 0		# Takedown Defense
+		self.sub_avg = 0	# Avg Subs Attempted Per 15 Min
