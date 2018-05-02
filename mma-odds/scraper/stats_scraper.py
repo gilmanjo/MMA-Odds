@@ -12,7 +12,7 @@ import ufc_objects as ufc
 # Constants
 ALL_EVENTS_PAGE = "http://www.fightmetric.com/statistics/events/completed?page=all"
 ALL_FIGHTERS_PAGE = "http://www.fightmetric.com/statistics/fighters?char=a&page=all"
-START_EVENT = "UFC Fight Night: Volkov vs. Struve"
+START_EVENT = "UFC Fight Night: Barboza vs. Lee"
 STOP_EVENT = "UFC 26: Ultimate Field Of Dreams"
 EVENT_FOLDER = ".//saved_events//"
 FIGHTER_FOLDER = ".//saved_fighters//"
