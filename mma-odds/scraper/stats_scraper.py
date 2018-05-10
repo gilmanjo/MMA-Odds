@@ -12,7 +12,7 @@ import ufc_objects as ufc
 # Constants
 ALL_EVENTS_PAGE = "http://www.fightmetric.com/statistics/events/completed?page=all"
 ALL_FIGHTERS_PAGE = "http://www.fightmetric.com/statistics/fighters?char=a&page=all"
-START_EVENT = "UFC Fight Night: Barboza vs. Lee"
+START_EVENT = "UFC 224: Nunes vs. Pennington"
 STOP_EVENT = "UFC 26: Ultimate Field Of Dreams"
 EVENT_FOLDER = ".//saved_events//"
 FIGHTER_FOLDER = ".//saved_fighters//"
@@ -47,7 +47,7 @@ def main():
 
 	# scrape all UFC fighters in company history
 	ufc_fighters = []
-	for letter in ascii_lowercase[4:]:
+	for letter in ascii_lowercase:
 
 		# update list page URL to next letter in alphabet
 		fighters_url = ALL_FIGHTERS_PAGE.replace(
@@ -204,16 +204,18 @@ def scrape_fighter(fighter_soup):
 	for x in range(len(stats_list)):
 		stats_list[x] = stats_list[x].get_text("|", strip=True).split("|")
 
-	# We don't want the fighter if the reach is unknown
+	# Flag fighters with missing stats
+	ms = False
 	if stats_list[2][1] == "--":
-		print("Skipping {}...".format(fighter_name))
-		return None
+		ms = True
 
 	# Otherwise, let's scrape all the data
 	print("Ripping data for {}...".format(fighter_name))
 	new_fighter = ufc.Fighter()
-
 	new_fighter.name = fighter_name
+
+	if ms:
+		new_fighter.missing_stats = True
 
 	# record
 	record_string = fighter_soup.find("span", "b-content__title-record"

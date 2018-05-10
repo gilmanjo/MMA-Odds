@@ -1,8 +1,9 @@
 digraph Tree {
-node [shape=box] ;
-0 [label="X[24] <= 1.534\nentropy = 1.033\nsamples = 4622\nvalue = [2302, 2302, 18]"] ;
-1 [label="entropy = 1.006\nsamples = 1326\nvalue = [756, 567, 3]"] ;
+node [shape=box, style="filled, rounded", color="black", fontname=helvetica] ;
+edge [fontname=helvetica] ;
+0 [label="X[43] <= 2.03\nentropy = 0.94\nsamples = 2855\nvalue = [1944, 897, 14]\nclass = Winner", fillcolor="#e5813988"] ;
+1 [label="entropy = 0.835\nsamples = 1195\nvalue = [908, 280, 7]\nclass = Winner", fillcolor="#e58139af"] ;
 0 -> 1 [labeldistance=2.5, labelangle=45, headlabel="True"] ;
-2 [label="entropy = 1.035\nsamples = 3296\nvalue = [1546, 1735, 15]"] ;
+2 [label="entropy = 0.988\nsamples = 1660\nvalue = [1036, 617, 7]\nclass = Winner", fillcolor="#e5813966"] ;
 0 -> 2 [labeldistance=2.5, labelangle=-45, headlabel="False"] ;
 }

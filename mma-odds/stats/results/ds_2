@@ -1,16 +1,17 @@
 digraph Tree {
-node [shape=box] ;
-0 [label="X[8] <= 1.534\nentropy = 1.033\nsamples = 4622\nvalue = [2302, 2302, 18]"] ;
-1 [label="X[24] <= 1.724\nentropy = 1.006\nsamples = 1326\nvalue = [567, 756, 3]"] ;
+node [shape=box, style="filled, rounded", color="black", fontname=helvetica] ;
+edge [fontname=helvetica] ;
+0 [label="X[43] <= 2.03\nentropy = 0.94\nsamples = 2855\nvalue = [1944, 897, 14]\nclass = Winner", fillcolor="#e5813988"] ;
+1 [label="X[38] <= 162.5\nentropy = 0.835\nsamples = 1195\nvalue = [908, 280, 7]\nclass = Winner", fillcolor="#e58139af"] ;
 0 -> 1 [labeldistance=2.5, labelangle=45, headlabel="True"] ;
-2 [label="entropy = 1.0\nsamples = 633\nvalue = [316, 317, 0]"] ;
+2 [label="entropy = 0.971\nsamples = 475\nvalue = [323, 147, 5]\nclass = Winner", fillcolor="#e5813989"] ;
 1 -> 2 ;
-3 [label="entropy = 0.982\nsamples = 693\nvalue = [251, 439, 3]"] ;
+3 [label="entropy = 0.717\nsamples = 720\nvalue = [585, 133, 2]\nclass = Winner", fillcolor="#e58139c4"] ;
 1 -> 3 ;
-4 [label="X[24] <= 1.53\nentropy = 1.035\nsamples = 3296\nvalue = [1735, 1546, 15]"] ;
+4 [label="X[43] <= 3.944\nentropy = 0.988\nsamples = 1660\nvalue = [1036, 617, 7]\nclass = Winner", fillcolor="#e5813966"] ;
 0 -> 4 [labeldistance=2.5, labelangle=-45, headlabel="False"] ;
-5 [label="entropy = 0.984\nsamples = 720\nvalue = [453, 264, 3]"] ;
+5 [label="entropy = 0.977\nsamples = 1348\nvalue = [870, 471, 7]\nclass = Winner", fillcolor="#e5813974"] ;
 4 -> 5 ;
-6 [label="entropy = 1.038\nsamples = 2576\nvalue = [1282, 1282, 12]"] ;
+6 [label="entropy = 0.997\nsamples = 312\nvalue = [166, 146, 0]\nclass = Winner", fillcolor="#e581391f"] ;
 4 -> 6 ;
 }

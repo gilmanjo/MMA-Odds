@@ -56,6 +56,8 @@ class Fighter(object):
 		self.name = ""
 		self.nickname = ""
 
+		self.missing_stats = False
+
 		# Record
 		self.wins = 0
 		self.losses = 0

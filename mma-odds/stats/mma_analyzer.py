@@ -8,8 +8,9 @@ import os
 os.environ["PATH"] += os.pathsep + "C:/Program Files (x86)/Graphviz2.38/bin/"
 import pickle
 import re
-from sklearn import metrics, model_selection, neighbors, preprocessing
-from sklearn import svm, tree
+from sklearn import calibration, metrics, model_selection, neighbors
+from sklearn import preprocessing, svm, tree
+from sklearn.ensemble import RandomForestClassifier
 import sys
 sys.path.append("../scraper/")
 import ufc_objects as ufc
@@ -19,6 +20,14 @@ import ufc_objects as ufc
 TRAINING_TO_TEST_SET_RATIO = 0.8
 EVENT_FOLDER = "..//scraper//saved_events//"
 FIGHTER_FOLDER = "..//scraper//saved_fighters//"
+FEATURE_NAMES = ["f1_wins", "f1_losses", "f1_draws", "f1_height", "f1_weight",
+	"f1_reach", "f1_stance", "f1_age", "f1_slpm", "f1_str_acc", "f1_sapm",
+	"f1_str_def", "f1_td_avg", "f1_td_acc", "f1_td_def", "f1_sub_avg",
+	"weight_class", "title", "f2_wins", "f2_losses", "f2_draws", "f2_height",
+	"f2_weight", "f2_reach", "f2_stance", "f2_age","f2_slpm", "f2_str_acc",
+	"f2_sapm", "f2_str_def", "f2_td_avg", "f2_td_acc", "f2_td_def",
+	"f2_sub_avg", "weight_class", "title"]
+CLASS_NAMES = ["Winner", "Loser", "N/A"]
 
 
 class Stance(Enum):
@@ -192,7 +201,7 @@ def revert_records(events_list, fighter_list):
 
 	return fighter_list
 
-def create_vectors(events_list, fighter_list, scale=True):
+def create_vectors(events_list, fighter_list):
 	"""Generate our training set for our algorithm
 	"""
 	events_list
@@ -203,9 +212,10 @@ def create_vectors(events_list, fighter_list, scale=True):
 	#
 	# [f1_wins, f1_losses, f1_draws, f1_height, f1_weight, f1_reach,
 	# f1_stance, f1_age, f1_slpm, f1_str_acc, f1_sapm, f1_str_def, f1_td_avg,
-	# f1_td_acc, f1_td_def, f1_sub_avg, f2_wins, f2_losses, f2_draws, 
-	# f2_height, f2_weight, f2_reach, f2_stance, f2_age, f2_slpm, f2_str_acc,
-	# f2_sapm, f2_str_def, f2_td_avg, f2_td_acc, f2_td_def, f2_sub_avg]
+	# f1_td_acc, f1_td_def, f1_sub_avg, weight_class, title, f2_wins, 
+	# f2_losses, f2_draws, f2_height, f2_weight, f2_reach, f2_stance, f2_age,
+	# f2_slpm, f2_str_acc, f2_sapm, f2_str_def, f2_td_avg, f2_td_acc, 
+	# f2_td_def, f2_sub_avg, weight_class, title]
 
 	print("Generating vectors...")
 
@@ -216,14 +226,17 @@ def create_vectors(events_list, fighter_list, scale=True):
 			new_vector_f1 = []
 			new_vector_f2 = []
 
+			weight_class = get_weight_class(fight.bout_type)
+			title = get_title(fight.bout_type)
+
 			for x, fighter in enumerate(fighter_list):
 
 				if fighter.name == fight.fighters[0]:
 
-					# some fighters didn't have a dob, so skip 'em
-					if not isinstance(fighter.dob, datetime.date):
+					# some fighters don't have complete info, skip em
+					if fighter.missing_stats or not isinstance(fighter.dob, 
+						datetime.date):
 						continue
-
 
 					# fill vector with all those juicy features
 					new_vector_f1 = [fighter.wins, fighter.losses,
@@ -234,12 +247,14 @@ def create_vectors(events_list, fighter_list, scale=True):
 						relativedelta(event.date.date() - fighter.dob).years,
 						fighter.slpm, fighter.str_acc, fighter.sapm,
 						fighter.str_def, fighter.td_avg, fighter.td_acc,
-						fighter.td_def, fighter.sub_avg]
+						fighter.td_def, fighter.sub_avg, weight_class, 
+						int(title)]
 					fighter_list[x] = update_fighter_stats(fighter, fight)
 
 				elif fighter.name == fight.fighters[1]:
 
-					if not isinstance(fighter.dob, datetime.date):
+					if fighter.missing_stats or not isinstance(fighter.dob, 
+						datetime.date):
 						continue
 
 					new_vector_f2 = [fighter.wins, fighter.losses,
@@ -250,37 +265,35 @@ def create_vectors(events_list, fighter_list, scale=True):
 						relativedelta(event.date.date() - fighter.dob).years,
 						fighter.slpm, fighter.str_acc, fighter.sapm,
 						fighter.str_def, fighter.td_avg, fighter.td_acc,
-						fighter.td_def, fighter.sub_avg]
+						fighter.td_def, fighter.sub_avg, weight_class, 
+						int(title)]
 					fighter_list[x] = update_fighter_stats(fighter, fight)
 
 			# if there wasn't a fighter match or it was a NC, then skip fight
 			if len(new_vector_f1) == 0 or len(new_vector_f2) == 0 \
 				or (fight.winner == "" and "Decision" not in fight.method):
-				break
+				continue
 
 			new_vectors.append(new_vector_f1 + new_vector_f2)
 			
 			# duplicate fight vector so fight billing is invariant (i.e.
 			# it doesn't matter if a fighter is billed first or second)
 			dup_vector = new_vector_f2 + new_vector_f1
-			new_vectors.append(dup_vector)
+			#new_vectors.append(dup_vector)
 
 			if fight.winner == "":
 				vector_labels.append(2)
-				vector_labels.append(2)
+				#vector_labels.append(2)
 
 			elif fight.winner == fight.fighters[0]:
 				vector_labels.append(0)
-				vector_labels.append(1)
+				#vector_labels.append(1)
 
 			else:
 				vector_labels.append(1)
-				vector_labels.append(0)
+				#vector_labels.append(0)
 
-	if scale:
-		return scale_vectors(new_vectors), vector_labels
-	else:
-		return new_vectors, vector_labels
+	return (new_vectors, vector_labels), fighter_list
 
 def update_fighter_stats(fighter, fight):
 	# updates a fighters stats
@@ -351,19 +364,76 @@ def update_fighter_stats(fighter, fight):
 
 	return fighter
 
-def scale_vectors(vector_list):
+def get_weight_class(bout_tt):
+	# look at the bout name and determine the proper weightclass
+	if "Women" in bout_tt and "Strawweight" in bout_tt:
+		return 1
+	elif "Women" in bout_tt and "Flyweight" in bout_tt:
+		return 2
+	elif "Women" in bout_tt and "Bantamweight" in bout_tt:
+		return 3
+	elif "Women" in bout_tt and "Featherweight" in bout_tt:
+		return 4
+	elif "Flyweight" in bout_tt:
+		return 5
+	elif "Bantamweight" in bout_tt:
+		return 6
+	elif "Featherweight" in bout_tt:
+		return 7
+	elif "Lightweight" in bout_tt:
+		return 8
+	elif "Welterweight" in bout_tt:
+		return 9
+	elif "Middleweight" in bout_tt:
+		return 10
+	elif "Light Heavyweight" in bout_tt:
+		return 11
+	elif "Heavyweight" in bout_tt:
+		return 12
+	elif "Catchweight" in bout_tt:
+		return 13
+	else:
+		return 0
+
+def get_title(bout_tt):
+	# determines if the bout is a title fight
+	if "Title" in bout_tt:
+		return True
+
+	else:
+		return False
+
+def scale_vectors(v_train, v_test):
 	# scales values in vector list to unit scale for use with
 	# scale-variant algorithms
 	print("Scaling vectors...")
 
 	# convert categorical features into one-hot-encoded values
-	encoder = preprocessing.OneHotEncoder(categorical_features=[6, 22])
-	encoder.fit_transform(vector_list).toarray()
+	encoder = preprocessing.OneHotEncoder(n_values=[3, 14, 3, 14],
+		categorical_features=[6, 16, 24, 34])
+	v_train = encoder.fit_transform(v_train).toarray()
+	v_test = encoder.transform(v_test).toarray()
+
+	# separate OHE'd from continous values
+	dis_cont_cutoff = sum(encoder.n_values_)
+	cont_v_train = v_train[:,dis_cont_cutoff:]
+	cont_v_test = v_test[:,dis_cont_cutoff:]
+	dis_v_train = v_train[:,:dis_cont_cutoff]
+	dis_v_test = v_test[:,:dis_cont_cutoff]
 
 	# scale data to distribution with zero mean and unit variance
-	scaler = preprocessing.StandardScaler().fit(vector_list)
-	scaler.transform(vector_list)
-	return vector_list, scaler
+	scaler = preprocessing.StandardScaler().fit(cont_v_train)
+	#scaler = preprocessing.MinMaxScaler().fit(vector_list)
+
+	# apply scaler
+	scaler.transform(cont_v_train.astype("float64"))
+	scaler.transform(cont_v_test.astype("float64"))
+
+	# recombine the features
+	v_train = np.concatenate((dis_v_train, cont_v_train), axis=1)
+	v_test = np.concatenate((dis_v_test, cont_v_test), axis=1)
+
+	return v_train, v_test
 
 def svm_analysis(X_train, y_train, X_test, y_test, grid=False):
 	# Perform analysis using Support Vector Machine
@@ -371,10 +441,20 @@ def svm_analysis(X_train, y_train, X_test, y_test, grid=False):
 
 	# SVM makes predictions!
 	if not grid:
-		clf = svm.SVC(C=100, gamma=0.0001)
-		clf.fit(X_train, y_train)
-		score = clf.score(X_test.astype("float64"), y_test.astype("float64"))
+		clf = svm.SVC(C=0.1, kernel="rbf", degree=2)
+		clf_c = calibration.CalibratedClassifierCV(clf)
+		clf_c.fit(X_train, y_train)
+		score = clf_c.score(X_test.astype("float64"), y_test.astype("float64"))
+
+		proba = clf_c.predict_proba(X_test)
+		pred = clf_c.predict(X_test)
+		for x in range(len(X_test)):
+			print("Predicted: {}\tProbabilities: {}\tActual: {}".\
+				format(pred[x], proba[x], y_test[x]))
+
 		print(score)
+		print(sum(y_test)/len(y_test))
+
 		return score
 
 	else:
@@ -404,7 +484,7 @@ def knn_analysis(X_train, y_train, X_test, y_test, verbose=False, K=5):
 	# if verbose, print out probabilities for each prediction
 	else:
 
-		prediction_threshhold = 0.8
+		prediction_threshhold = 0.775
 		thresh_pred = []
 		estimates = clf.predict(X_test), clf.predict_proba(X_test)
 
@@ -423,8 +503,9 @@ def knn_analysis(X_train, y_train, X_test, y_test, verbose=False, K=5):
 				else:
 					thresh_pred.append(0)
 
-		print("\nPrediction Accuracy (with threshold = {}):\t{}".format(
-			prediction_threshhold, sum(thresh_pred)/len(thresh_pred)))
+		print("\nPrediction Accuracy (with threshold = {}: {}; n = {})".format(
+			prediction_threshhold, sum(thresh_pred)/len(thresh_pred),
+			len(thresh_pred)))
 
 		return estimates
 
@@ -444,9 +525,19 @@ def decision_tree_analysis(X_train, y_train, X_test, y_test, visual=False,
 
 	# graph decision stump
 	if visual:
-		data = tree.export_graphviz(clf, out_file=None)
+		data = tree.export_graphviz(clf, out_file=None,
+			class_names=CLASS_NAMES,
+			filled=True, rounded=True)
 		graph = graphviz.Source(data, format="png")
 		graph.render("./results/ds_{}".format(d))
+
+def random_forest_analysis(X_train, y_train, X_test, y_test, d=2):
+	# uses Random Forest Classifier to analyze fight data
+	print("Performing Random Forest Classifier analysis...")
+	clf = RandomForestClassifier(max_depth=d, random_state=0)
+	clf.fit(X_train, y_train)
+
+	print(clf.score(X_test,y_test))
 
 def _time_to_minutes(time_string):
 	# helper function converts a time string into a number of minutes
@@ -476,35 +567,38 @@ def main():
 
 	# syntax
 	# ((scaled_vectors, scaler), training_labels)
-	training_set = create_vectors(
+	training_set, ufc_fighters = create_vectors(
 		ufc_events[:training_set_size], ufc_fighters)
 
 	# create feature, label vectors and scaler out of data matrix
-	X_train = np.array(training_set[0][0])
+	X_train = np.array(training_set[0])
 	y_train = np.array(training_set[1])
-	scaler = training_set[0][1]
 
 	# Generate testing set
-	test_set = create_vectors(ufc_events[training_set_size:], 
-		ufc_fighters, scale=False)
+	test_set, ufc_fighters = create_vectors(ufc_events[training_set_size:], 
+		ufc_fighters)
+
 	X_test = np.array(test_set[0])
 	y_test = np.array(test_set[1])
-	scaler.transform(X_test.astype("float64"))  # apply scaler
+
+	X_train, X_test = scale_vectors(X_train, X_test)
 
 	# perform analyses of data with machine learning techniques
 	print("\n\n################\nAnalysis Results:\n################\n\n")
 	svm_result = svm_analysis(X_train, y_train, X_test, y_test)
 
 	knn_results = []
-	for x in range(40,45):
-		knn_results.append(knn_analysis(X_train, y_train, X_test, y_test, K=x))
+	"""for x in range(40,51):
+		knn_results.append(knn_analysis(X_train, y_train, X_test, y_test, K=x))"""
 
-	"""plt.plot(range(40,45), knn_results, "r--")
+	knn_analysis(X_train, y_train, X_test, y_test, K=42, verbose=False)
+	"""plt.plot(range(40,51), knn_results, "r--")
 	plt.show()"""
 
-	for x in range(1,11):
+	for x in range(1,8):
 		decision_tree_analysis(X_train, y_train, X_test, y_test, visual=True,
 			d=x)
+		random_forest_analysis(X_train, y_train, X_test, y_test, d=x)
 
 if __name__ == '__main__':
 	main()
